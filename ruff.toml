@@ -1,0 +1,58 @@
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "alembic"
+]
+# Assume Python 3.12
+target-version = "py312"
+
+[lint]
+# Enable Pyflakes `E` and `F` codes by default.
+select = [
+    # Pyflakes
+    "F",
+    # Pycodestyle
+    "E",
+    "W",
+    # isort
+    "I001",
+    "T201"
+]
+ignore = [
+    "E501",
+    "F403",
+    "F405",
+    "E722",
+    "E721",
+    "E712",
+    "E711",
+    "F841",
+    "F811",
+    "F821"
+]
+
+
+per-file-ignores = {}
+
+[lint.mccabe]
+# Unlike Flake8, default to a complexity level of 10.
+max-complexity = 10
