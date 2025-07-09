@@ -1,0 +1,64 @@
+FROM python:3.11-slim as builder
+
+LABEL maintainer="Python FastAPI Template"
+LABEL description="Python FastAPI Template Development Environment"
+LABEL version="1.0"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONIOENCODING=utf-8 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_DEFAULT_TIMEOUT=100 \
+    PIP_ROOT_USER_ACTION=ignore \
+    POETRY_VERSION=1.8.3 \
+    POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_CREATE=false \
+    POETRY_CACHE_DIR='/var/cache/pypoetry' \
+    POETRY_HOME='/usr/local' \
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc_dir
+
+SHELL ["/bin/bash", "-eo", "pipefail", "-c"]
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    libpq-dev \
+    python3-dev \
+    libc6-dev \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/* \
+    && curl -sSL 'https://install.python-poetry.org' | python - \
+    && poetry --version
+
+COPY poetry.lock pyproject.toml /src/
+WORKDIR /src
+
+RUN --mount=type=cache,target="$POETRY_CACHE_DIR" \
+    poetry run pip install -U pip \
+    && poetry install --no-interaction --no-ansi --sync
+
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONIOENCODING=utf-8 \
+    PROMETHEUS_MULTIPROC_DIR=/tmp/prometheus_multiproc_dir
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    libpq5 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+COPY . .
+
+EXPOSE 8000
+
+CMD ["bash", "-c", "alembic upgrade head && uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload"]
