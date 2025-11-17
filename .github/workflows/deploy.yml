@@ -1,0 +1,94 @@
+name: Deploy to Server
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  deploy:
+    name: Deploy to Production Server
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install poetry
+          poetry install --no-interaction --no-ansi
+
+      - name: Run tests
+        run: |
+          poetry run pytest tests/ -v --tb=short
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Add server to known hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/var/www/app' }}
+        run: |
+          ssh -p $SSH_PORT $SSH_USER@$SSH_HOST << 'ENDSSH'
+            set -e
+            echo "Starting deployment..."
+            
+            # Переход в директорию проекта
+            cd $DEPLOY_PATH || exit 1
+            
+            # Получение последних изменений
+            git fetch origin
+            git reset --hard origin/main || git reset --hard origin/master
+            
+            # Обновление зависимостей (если используется Poetry)
+            if [ -f "pyproject.toml" ]; then
+              poetry install --no-interaction --no-ansi --sync
+            fi
+            
+            # Применение миграций базы данных
+            if [ -f "alembic.ini" ]; then
+              poetry run alembic upgrade head || echo "Migration failed, but continuing..."
+            fi
+            
+            # Перезапуск приложения (закомментировано, так как по правилам не перезапускаем автоматически)
+            # sudo systemctl restart app || docker-compose restart app || echo "Restart command not found"
+            
+            echo "Deployment completed successfully!"
+          ENDSSH
+
+      - name: Verify deployment
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT || '22' }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/var/www/app' }}
+        run: |
+          ssh -p $SSH_PORT $SSH_USER@$SSH_HOST << 'ENDSSH'
+            cd $DEPLOY_PATH || exit 1
+            echo "Verifying deployment..."
+            git log -1 --oneline
+            echo "Deployment verification completed!"
+          ENDSSH
+

@@ -1,0 +1,26 @@
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: Ruff Check with Fix
+        entry: ruff check --fix
+        language: python
+        types: [python]
+        additional_dependencies: [ruff]
+        stages: [pre-commit]
+
+      - id: ruff-format
+        name: Ruff Format
+        entry: ruff format
+        language: python
+        types: [python]
+        additional_dependencies: [ruff]
+        stages: [pre-commit]
+
+      - id: pytest
+        name: Pytest
+        entry: pytest -s -v
+        language: system
+        pass_filenames: false
+        stages: [pre-push]
+      
